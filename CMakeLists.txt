@@ -115,16 +115,22 @@ add_library(imgui
     thirdparty/imgui/imgui_tables.cpp
     )
 # Use a project-local imgui config (ImTextureID_Invalid override) instead of editing the submodule.
+target_include_directories(imgui SYSTEM PUBLIC ${IMGUI_INCLUDE_DIRS})
 target_include_directories(imgui PRIVATE ${MUYO_RENDERER_ROOT}/src)
 target_compile_definitions(imgui PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
 
 ## ImGuizmo
+# ImGuizmo.cpp includes "imgui.h" and "imgui_internal.h"; Muyo supplied those through a
+# directory-scoped include_directories(SYSTEM ...), which does not exist here, so the edge is stated.
 set(IMGUIZMO_INCLUDE_DIRS ${MUYO_RENDERER_ROOT}/thirdparty/ImGuizmo/src)
 add_library(imguizmo ${IMGUIZMO_INCLUDE_DIRS}/ImGuizmo.cpp)
+target_link_libraries(imguizmo PRIVATE imgui)
 
 ## imnodes
+# imnodes.h includes "imgui.h" in its public interface, so the dependency is PUBLIC here.
 set(IMNODES_INCLUDE_DIRS ${MUYO_RENDERER_ROOT}/thirdparty/imnodes)
 add_library(imnodes thirdparty/imnodes/imnodes.cpp)
+target_link_libraries(imnodes PUBLIC imgui)
 
 ## Vulkan (the library targets already require it; the renderer names it for its own link line)
 if (NOT ENV{VULKAN_SDK} AND EXISTS ENV{VULKAN_SDK})
@@ -139,8 +145,13 @@ add_library(tinyobj ${MUYO_RENDERER_ROOT}/thirdparty/tinyobjloader/tiny_obj_load
 ## tinygltf
 # Pinned to the last v2 release: upstream's `release` branch is now v3, which renames the whole API
 # (tiny_gltf_v3.c/h) and would break SceneImporter. The v3 migration is filed separately.
+#
+# No `tinygltf` library target: upstream's `tiny_gltf.cc` also defines STB_IMAGE_IMPLEMENTATION, which
+# instantiates a second stb_image and collides with the single implementation in
+# `src/RenderResources/stb_image_impl.cpp`. The implementation TU lives in
+# `src/RenderResources/tinygltf_impl.cpp` and is compiled into `muyo_renderer` by the src glob, the same
+# way stb's is.
 include_directories(${MUYO_RENDERER_ROOT}/thirdparty/tinygltf)
-add_library(tinygltf ${MUYO_RENDERER_ROOT}/thirdparty/tinygltf/tiny_gltf.cc)
 
 ## stb (nothings/stb submodule). Only stb_image is used; its single implementation TU is
 ## `src/RenderResources/stb_image_impl.cpp`, compiled into muyo_renderer by the src glob below.
@@ -172,6 +183,10 @@ target_include_directories(muyo_renderer
         ${MUYO_RENDERER_ROOT}/src/RenderResources
         ${MUYO_RENDERER_ROOT}/src/Scene
         ${MUYO_RENDERER_ROOT}/src/Debug
+        # Shader-side shared structs (`SharedStructures.h`) are still in the Muyo checkout, because the
+        # `Shaders` target that compiles against them is Muyo's; the C++ side has to read the same
+        # header or the two sides drift. Moving the shaders here is part of #318.
+        ${MUYO_SOURCE_DIR}/shaders/shared
         ${GLM_INCLUDE_DIRS}
         ${IMGUI_INCLUDE_DIRS}
         ${IMGUIZMO_INCLUDE_DIRS}
@@ -194,14 +209,16 @@ target_link_libraries(muyo_renderer
     PUBLIC
         muyo_rg
         muyo_device
+        # `src/WindowGLFW.h` is part of this library's public include surface and includes
+        # `GLFW/glfw3.h`, so a consumer of the host layer needs GLFW's headers and its link edge.
+        # Muyo's engine target supplied this with the plain (PUBLIC-by-default) link signature.
+        ${WINDOW_LIB}
     PRIVATE
         imgui
         imguizmo
         imnodes
-        tinygltf
         tinyobj
         meshoptimizer
-        ${WINDOW_LIB}
         ${Vulkan_LIBRARIES}
         VulkanMemoryAllocator
         ${GLM_INCLUDE_DIRS}
