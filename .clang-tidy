@@ -1,0 +1,33 @@
+---
+# clang-tidy configuration for muyo-renderer.
+#
+# This is the same curated set as the Muyo repository's .clang-tidy: `bugprone-*` and
+# `clang-analyzer-*` are in, with the same measured exclusions, so the renderer's code is checked
+# against the same standard as the library it is built on. The exclusions and their reasons are kept
+# from Muyo's file:
+#
+#  * `bugprone-easily-swappable-parameters` is out: two adjacent same-type parameters are often the API
+#    (`Initialize(extensions, layers)`), and the check cannot distinguish the real risk from the shape.
+#  * `clang-diagnostic-*` is out: those are compiler diagnostics, which `-Wall -Wextra` already owns.
+#  * `bugprone-switch-missing-default-case` is out: exhaustive switches with no default are used on
+#    purpose (a new enumerator must warn, not fall into a silent default).
+#  * `bugprone-narrowing-conversions` is out until the legacy findings are triaged.
+#  * `clang-analyzer-optin.performance.Padding` is out: Vulkan structs are ABI-fixed and cannot be
+#    reordered, so the finding is not actionable.
+#  * `performance-*` is out for now.
+#  * `readability-*`/`modernize-*`/`cppcoreguidelines-*` are a later pass.
+#
+# Pin clang-tidy 18 (the version Muyo's .clang-format and CI use): newer releases add checks and change
+# results, so a version bump is a deliberate change with its own measurement.
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  -clang-diagnostic-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-switch-missing-default-case,
+  -clang-analyzer-optin.performance.Padding,
+WarningsAsErrors: ''
+# Anchored on the checkout directory name: a bare `src/` pattern also matches vendored sources.
+HeaderFilterRegex: '^.*/muyo-renderer/src/.*\.(h|hpp|cpp)$'
+SystemHeaders: false

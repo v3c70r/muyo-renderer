@@ -1,0 +1,4 @@
+[submodule "thirdparty/Muyo"]
+	path = thirdparty/Muyo
+	url = https://github.com/v3c70r/Muyo.git
+	branch = master
