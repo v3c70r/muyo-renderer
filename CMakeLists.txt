@@ -20,7 +20,8 @@ set(MUYO_RENDERER_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(MUYO_RENDERER_BINARY_ROOT "${CMAKE_CURRENT_BINARY_DIR}")
 
 # Runtime artefacts for this project's own targets. Muyo sets its own inside its directory scope, so
-# its shaders land under `<build>/muyo/shaders/` while the renderer's executables land here.
+# the libraries' artefacts land under `<build>/muyo/` while the renderer's executables, its compiled
+# shaders and its copied assets land here.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${MUYO_RENDERER_BINARY_ROOT})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${MUYO_RENDERER_BINARY_ROOT})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${MUYO_RENDERER_BINARY_ROOT})
@@ -183,10 +184,10 @@ target_include_directories(muyo_renderer
         ${MUYO_RENDERER_ROOT}/src/RenderResources
         ${MUYO_RENDERER_ROOT}/src/Scene
         ${MUYO_RENDERER_ROOT}/src/Debug
-        # Shader-side shared structs (`SharedStructures.h`) are still in the Muyo checkout, because the
-        # `Shaders` target that compiles against them is Muyo's; the C++ side has to read the same
-        # header or the two sides drift. Moving the shaders here is part of #318.
-        ${MUYO_SOURCE_DIR}/shaders/shared
+        # Shader-side shared structs (`SharedStructures.h`). They moved here with the shader corpus
+        # (#318); the C++ side has to read the same header the `.slang` files include or the two sides
+        # drift.
+        ${MUYO_RENDERER_ROOT}/shaders/shared
         ${GLM_INCLUDE_DIRS}
         ${IMGUI_INCLUDE_DIRS}
         ${IMGUIZMO_INCLUDE_DIRS}
@@ -227,30 +228,115 @@ muyo_renderer_enable_deprecation_errors(muyo_renderer)
 
 # ── Applications ─────────────────────────────────────────────────────────────
 if (MUYO_RENDERER_TOP_LEVEL)
+    # ── Shaders ──────────────────────────────────────────────────────────────
+    # The corpus moved here from Muyo with the pipeline (#318). It used to be compiled by Muyo's
+    # `Shaders` target into `<build>/muyo/shaders` and copied beside the binaries; this project now
+    # owns the target and writes directly to `<build>/shaders`, the working-directory-relative path
+    # the app and the suite load. Top-level only: an embed of the renderer library needs neither the
+    # compilers nor the `.spv` files.
+    if (NOT Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
+        message(FATAL_ERROR "Can't find glslangValidator (the Vulkan SDK's Bin directory must be on PATH)")
+    endif()
+    if (NOT Vulkan_SLANG_EXECUTABLE)
+        find_program(Vulkan_SLANG_EXECUTABLE
+            NAMES slangc
+            HINTS "$ENV{VULKAN_SDK}/bin")
+    endif()
+    if (NOT Vulkan_SLANG_EXECUTABLE)
+        message(FATAL_ERROR "Can't find slangc (the Vulkan SDK's Bin directory must be on PATH)")
+    endif()
+
+    set(MUYO_RENDERER_SHADER_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
+
+    # GLSL sources. The header glob is a build dependency of every one of them: a shared struct change
+    # has to reach the modules that include it.
+    file(GLOB_RECURSE GLSL_SOURCE_FILES
+        "${MUYO_RENDERER_ROOT}/shaders/*.frag"
+        "${MUYO_RENDERER_ROOT}/shaders/*.vert"
+        "${MUYO_RENDERER_ROOT}/shaders/*.rgen"
+        "${MUYO_RENDERER_ROOT}/shaders/*.rmiss"
+        "${MUYO_RENDERER_ROOT}/shaders/*.rchit"
+        "${MUYO_RENDERER_ROOT}/shaders/*.comp"
+        )
+    file(GLOB_RECURSE GLSL_HEADER_FILES "${MUYO_RENDERER_ROOT}/shaders/*.h")
+
+    foreach (GLSL_SOURCE_FILE ${GLSL_SOURCE_FILES})
+        get_filename_component(FILE_NAME ${GLSL_SOURCE_FILE} NAME)
+        set(SPIRV "${MUYO_RENDERER_SHADER_DIR}/${FILE_NAME}.spv")
+        add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${MUYO_RENDERER_SHADER_DIR}"
+            COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} --target-env vulkan1.3 -DSHADER_CODE -g -V ${GLSL_SOURCE_FILE} -o ${SPIRV}
+            DEPENDS ${GLSL_SOURCE_FILE} ${GLSL_HEADER_FILES})
+        list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+    endforeach()
+
+    # Slang sources. The `.heap.slang` variants are built by the rule below instead, so each source is
+    # compiled exactly once (docs/DescriptorHeap-Bindless-Design.md §9).
+    file(GLOB_RECURSE SLANG_SOURCE_FILES "${MUYO_RENDERER_ROOT}/shaders/*.slang")
+    list(FILTER SLANG_SOURCE_FILES EXCLUDE REGEX "\\.heap\\.slang$")
+    foreach (SLANG_SOURCE_FILE ${SLANG_SOURCE_FILES})
+        get_filename_component(FILE_NAME ${SLANG_SOURCE_FILE} NAME)
+        set(SPIRV "${MUYO_RENDERER_SHADER_DIR}/${FILE_NAME}.spv")
+        add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${MUYO_RENDERER_SHADER_DIR}"
+            COMMAND ${Vulkan_SLANG_EXECUTABLE} ${SLANG_SOURCE_FILE} -DSHADER_CODE -DSLANG
+                    -capability spirv_1_4 -profile glsl_450 -target spirv -o ${SPIRV} -entry main
+            DEPENDS ${SLANG_SOURCE_FILE})
+        list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+    endforeach()
+
+    # Descriptor-heap variants. `-capability spvDescriptorHeapEXT` emits SPV_EXT_descriptor_heap +
+    # SPV_KHR_untyped_pointers; the heap strides stay at Slang's default 0 so the module carries
+    # OpConstantSizeOfEXT/ArrayStrideIdEXT rather than a device-specific stride
+    # (docs/DescriptorHeap-Bindless-Design.md §5). The output keeps the `.heap` marker so a node can
+    # name `foo.heap` while the non-heap path names `foo`.
+    file(GLOB_RECURSE HEAP_SLANG_SOURCE_FILES "${MUYO_RENDERER_ROOT}/shaders/*.heap.slang")
+    # Prefer the SDK's own validator: a distribution's spirv-val can be older than the extension it is
+    # asked to validate. NO_DEFAULT_PATH makes the build use the pinned SDK or nothing.
+    find_program(SPIRV_VAL_EXECUTABLE
+        NAMES spirv-val
+        HINTS "$ENV{VULKAN_SDK}/bin"
+        NO_DEFAULT_PATH)
+    foreach (HEAP_SLANG_SOURCE_FILE ${HEAP_SLANG_SOURCE_FILES})
+        get_filename_component(FILE_NAME ${HEAP_SLANG_SOURCE_FILE} NAME)
+        string(REGEX REPLACE "\\.slang$" ".spv" SPIRV_NAME "${FILE_NAME}")
+        set(SPIRV "${MUYO_RENDERER_SHADER_DIR}/${SPIRV_NAME}")
+        set(HEAP_VALIDATE_COMMAND)
+        if (SPIRV_VAL_EXECUTABLE)
+            set(HEAP_VALIDATE_COMMAND COMMAND ${SPIRV_VAL_EXECUTABLE} --target-env vulkan1.4 ${SPIRV})
+        else()
+            # Say it in configure output rather than let an unvalidated `.heap.spv` look valid.
+            message(STATUS "descriptor-heap .spv validation: disabled (no spirv-val in $ENV{VULKAN_SDK}/bin)")
+        endif()
+        add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${MUYO_RENDERER_SHADER_DIR}"
+            COMMAND ${Vulkan_SLANG_EXECUTABLE} ${HEAP_SLANG_SOURCE_FILE} -DSHADER_CODE -DSLANG
+                    -capability spvDescriptorHeapEXT -capability spirv_1_4
+                    -profile glsl_450 -target spirv -o ${SPIRV} -entry main
+            ${HEAP_VALIDATE_COMMAND}
+            DEPENDS ${HEAP_SLANG_SOURCE_FILE} ${GLSL_HEADER_FILES})
+        list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+    endforeach()
+
+    add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
+
     # One app. `helloVulkanRG` was folded into it: the graph path was already this app's frame loop, and
     # the trace page it uniquely had is now registered with the debug overlay (#318).
     add_executable(helloVulkan src/app/helloVulkan.cpp)
     target_link_libraries(helloVulkan PRIVATE muyo_renderer)
     muyo_renderer_enable_deprecation_errors(helloVulkan)
-
-    # Shaders are built by the Muyo subdirectory's unguarded `Shaders` target into `<build>/muyo/shaders`.
-    # The app and the tests load `<name>.spv` from `shaders/` relative to the working directory, so the
-    # directory is copied next to this project's executables after each target build.
     add_dependencies(helloVulkan Shaders)
+
+    # The app and the tests load `assets/` relative to the working directory, so the tree is copied
+    # beside the executable. It is this repository's own `assets/` now (#318).
+    set(MUYO_RENDERER_ASSETS "${MUYO_RENDERER_ROOT}/assets")
     add_custom_command(TARGET helloVulkan POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_BINARY_DIR}/muyo/shaders"
-            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
-
-    # Assets still live in the Muyo checkout for now; the app and the tests load `assets/` relative to
-    # the working directory. Moving them is part of the renderer split (#318).
-    set(MUYO_RENDERER_ASSETS "${MUYO_SOURCE_DIR}/assets")
-    if (EXISTS "${MUYO_RENDERER_ASSETS}")
-        add_custom_command(TARGET helloVulkan POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${MUYO_RENDERER_ASSETS}"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
-    endif()
+            "${MUYO_RENDERER_ASSETS}"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
 
     # ── Tests ─────────────────────────────────────────────────────────────────
     # A top-level-only development concern, exactly as in Muyo: Catch2 is fetched over the network at
@@ -296,20 +382,15 @@ if (MUYO_RENDERER_TOP_LEVEL)
     target_compile_definitions(tests PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
     muyo_renderer_enable_deprecation_errors(tests)
 
-    # The suite reads shaders and `assets/` relative to the working directory, and ctest runs it from
-    # the build directory: copy both beside the binary. `RenderGraphBuilderTest` fails without
-    # `assets/mazda_mx-5_spot/untitled.gltf`, so this is not optional.
+    # The suite reads the compiled shaders and `assets/` relative to the working directory, and ctest
+    # runs it from the build directory. `RenderGraphBuilderTest` fails without
+    # `assets/mazda_mx-5_spot/untitled.gltf`, so the asset copy is not optional. The shaders are already
+    # in `<build>/shaders` because the target writes there directly (#318).
     add_dependencies(tests Shaders)
     add_custom_command(TARGET tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_BINARY_DIR}/muyo/shaders"
-            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
-    if (EXISTS "${MUYO_RENDERER_ASSETS}")
-        add_custom_command(TARGET tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${MUYO_RENDERER_ASSETS}"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
-    endif()
+            "${MUYO_RENDERER_ASSETS}"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
 
     include(Catch)
     catch_discover_tests(tests)
