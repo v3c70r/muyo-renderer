@@ -133,7 +133,7 @@ add_library(imnodes thirdparty/imnodes/imnodes.cpp)
 target_link_libraries(imnodes PUBLIC imgui)
 
 ## Vulkan (the library targets already require it; the renderer names it for its own link line)
-if (NOT ENV{VULKAN_SDK} AND EXISTS ENV{VULKAN_SDK})
+if (DEFINED ENV{VULKAN_SDK})
     list(APPEND CMAKE_PREFIX_PATH $ENV{VULKAN_SDK})
 endif()
 find_package(Vulkan REQUIRED)
