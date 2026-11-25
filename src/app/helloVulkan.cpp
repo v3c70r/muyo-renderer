@@ -24,6 +24,7 @@
 #include "Camera.h"
 #include "Debug.h"
 #include "Debug/DebugUIOverlay.h"
+#include "Debug/RenderGraphTracePage.h"
 #include "Debug/Validation.h"
 #include "DescriptorHeapService.h"
 #include "DescriptorManager.h"
@@ -387,6 +388,10 @@ int main(int argc, char **argv)
             overlay.RegisterPage<EnvironmentMapDebugPage>("Env HDRs");
             overlay.RegisterPage<LightsDebugPage>("Lights");
             overlay.RegisterPage<CameraDebugPage>("MainCamera");
+            // The render-graph trace page was the one thing helloVulkanRG had that this app did not: the
+            // lane view of recorded executions. It is an IDebugUIPage, so the overlay hosts it and renders
+            // it in registration order like the other pages; the builder's trace sink below fills it.
+            auto *pTracePage = overlay.RegisterPage<RenderGraphTracePage>("Render graph execution");
 
             // One vertex/index pair per swapchain image: with a frame in flight, frame N+1 must not
             // overwrite the UI data frame N's GPU work is still reading.
@@ -453,6 +458,10 @@ int main(int argc, char **argv)
                 RenderGraphServices{
                     .device = GetRenderDevice(), .resourceAllocator = graphAllocator.get(), .descriptorHeap = &heap},
                 kImagesInFlight);
+            // Record every execution for the trace page. The sink's presence is what turns tracing on,
+            // and it costs one null check per node when the page is not shown.
+            builder.SetTraceSink([page = pTracePage](RenderGraph::RenderGraphTrace trace)
+                                 { page->Push(std::move(trace)); });
             TextureResource *pEnvMap = GetRenderResourceManager()->GetResource<TextureResource>("EnvMap");
             if (pEnvMap == nullptr)
             {

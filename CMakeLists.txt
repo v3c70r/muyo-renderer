@@ -28,7 +28,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${MUYO_RENDERER_BINARY_ROOT})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${MUYO_RENDERER_BINARY_ROOT})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# True when this project is the root of the build. The test suite and the demo apps are development
+# True when this project is the root of the build. The test suite and the demo app are development
 # concerns, so an embedder of the renderer does not get them.
 set(MUYO_RENDERER_TOP_LEVEL FALSE)
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -227,27 +227,23 @@ muyo_renderer_enable_deprecation_errors(muyo_renderer)
 
 # ── Applications ─────────────────────────────────────────────────────────────
 if (MUYO_RENDERER_TOP_LEVEL)
+    # One app. `helloVulkanRG` was folded into it: the graph path was already this app's frame loop, and
+    # the trace page it uniquely had is now registered with the debug overlay (#318).
     add_executable(helloVulkan src/app/helloVulkan.cpp)
     target_link_libraries(helloVulkan PRIVATE muyo_renderer)
     muyo_renderer_enable_deprecation_errors(helloVulkan)
 
-    add_executable(helloVulkanRG src/app/helloVulkanRG.cpp)
-    target_link_libraries(helloVulkanRG PRIVATE muyo_renderer)
-    muyo_renderer_enable_deprecation_errors(helloVulkanRG)
-
     # Shaders are built by the Muyo subdirectory's unguarded `Shaders` target into `<build>/muyo/shaders`.
-    # The apps load `<name>.spv` from `shaders/` relative to the working directory, so the directory is
-    # copied next to this project's executables after each app build.
-    foreach (app helloVulkan helloVulkanRG)
-        add_dependencies(${app} Shaders)
-        add_custom_command(TARGET ${app} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_BINARY_DIR}/muyo/shaders"
-                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
-    endforeach()
+    # The app and the tests load `<name>.spv` from `shaders/` relative to the working directory, so the
+    # directory is copied next to this project's executables after each target build.
+    add_dependencies(helloVulkan Shaders)
+    add_custom_command(TARGET helloVulkan POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/muyo/shaders"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 
-    # Assets still live in the Muyo checkout for now; the renderer loads `assets/` relative to the
-    # working directory. Moving them is part of the renderer split (#318).
+    # Assets still live in the Muyo checkout for now; the app and the tests load `assets/` relative to
+    # the working directory. Moving them is part of the renderer split (#318).
     set(MUYO_RENDERER_ASSETS "${MUYO_SOURCE_DIR}/assets")
     if (EXISTS "${MUYO_RENDERER_ASSETS}")
         add_custom_command(TARGET helloVulkan POST_BUILD
@@ -255,4 +251,66 @@ if (MUYO_RENDERER_TOP_LEVEL)
                 "${MUYO_RENDERER_ASSETS}"
                 "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
     endif()
+
+    # ── Tests ─────────────────────────────────────────────────────────────────
+    # A top-level-only development concern, exactly as in Muyo: Catch2 is fetched over the network at
+    # configure time, so an embedder of the renderer does not pay for it. The suite is the
+    # renderer-coupled half of Muyo's old suite, moved with the pipeline (#318); `PSODescTest` stays in
+    # Muyo because its subject is the library.
+    enable_testing()
+    include(CTest)
+
+    include(FetchContent)
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.8.0)
+    FetchContent_MakeAvailable(Catch2)
+    message(STATUS "Catch2 source dir: ${catch2_SOURCE_DIR}")
+
+    add_executable(tests
+        src/tests/ArcballTest.cpp
+        src/tests/DebugCallbackTests.cpp
+        src/tests/DescriptorHeapProbeTests.cpp
+        src/tests/DescriptorHeapServiceTests.cpp
+        src/tests/DeviceCapabilityTests.cpp
+        src/tests/FrameSyncTest.cpp
+        src/tests/RenderGraphBuilderTest.cpp
+        src/tests/RenderGraphFinalNodeTest.cpp
+        src/tests/RenderGraphGBufferLightingTest.cpp
+        src/tests/RenderGraphHeapTests.cpp
+        src/tests/RenderGraphPipelineCacheTests.cpp
+        src/tests/RenderGraphShaderCacheTests.cpp
+        src/tests/RenderGraphTracePageSelectionTests.cpp
+        src/tests/SceneBoundsTest.cpp
+        src/tests/SceneImporterTests.cpp
+        src/tests/ShaderReflectionTests.cpp
+        )
+    target_include_directories(tests PRIVATE
+        ${catch2_SOURCE_DIR}/src
+        ${MUYO_RENDERER_ROOT}/thirdparty/RenderDoc)
+    # `muyo_renderer` already provides every renderer source and include this binary needs, and it links
+    # the libraries, so the suite names only the renderer target and the Catch2 main.
+    target_link_libraries(tests PRIVATE Catch2::Catch2WithMain muyo_renderer)
+    # Keep ImTextureID_Invalid consistent with the imgui target (see src/ImGuiUserConfig.h).
+    target_compile_definitions(tests PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
+    muyo_renderer_enable_deprecation_errors(tests)
+
+    # The suite reads shaders and `assets/` relative to the working directory, and ctest runs it from
+    # the build directory: copy both beside the binary. `RenderGraphBuilderTest` fails without
+    # `assets/mazda_mx-5_spot/untitled.gltf`, so this is not optional.
+    add_dependencies(tests Shaders)
+    add_custom_command(TARGET tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/muyo/shaders"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
+    if (EXISTS "${MUYO_RENDERER_ASSETS}")
+        add_custom_command(TARGET tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${MUYO_RENDERER_ASSETS}"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets")
+    endif()
+
+    include(Catch)
+    catch_discover_tests(tests)
 endif()
