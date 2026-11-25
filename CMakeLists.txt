@@ -235,7 +235,7 @@ if (MUYO_RENDERER_TOP_LEVEL)
     # the app and the suite load. Top-level only: an embed of the renderer library needs neither the
     # compilers nor the `.spv` files.
     if (NOT Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
-        message(FATAL_ERROR "Can't find glslangValidator (the Vulkan SDK's Bin directory must be on PATH)")
+        message(FATAL_ERROR "Can't find glslangValidator (set VULKAN_SDK or put the Vulkan SDK's Bin directory on PATH)")
     endif()
     if (NOT Vulkan_SLANG_EXECUTABLE)
         find_program(Vulkan_SLANG_EXECUTABLE
@@ -243,7 +243,7 @@ if (MUYO_RENDERER_TOP_LEVEL)
             HINTS "$ENV{VULKAN_SDK}/bin")
     endif()
     if (NOT Vulkan_SLANG_EXECUTABLE)
-        message(FATAL_ERROR "Can't find slangc (the Vulkan SDK's Bin directory must be on PATH)")
+        message(FATAL_ERROR "Can't find slangc (set VULKAN_SDK or put the Vulkan SDK's Bin directory on PATH)")
     endif()
 
     set(MUYO_RENDERER_SHADER_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
