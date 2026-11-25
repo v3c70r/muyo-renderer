@@ -4,9 +4,10 @@ The Muyo render pipeline and host, built on the [`muyo_rg`](https://github.com/v
 graph and `muyo_device` device libraries.
 
 This repository is the consumer side of the Muyo library boundary: it owns the render pipeline
-(GBuffer → lighting → UI → final), the window/present host, the scene and resource managers, and the
-renderer's asset loading. It contains no library code — `muyo_rg` and `muyo_device` stay in the Muyo
-repository, and this repository consumes them as a submodule.
+(GBuffer → lighting → UI → final), the window/present host, the scene and resource managers, the
+renderer's asset loading, and — since the shader move in #318 — the Slang/GLSL sources and the sample
+scenes. It contains no library code — `muyo_rg` and `muyo_device` stay in the Muyo repository, and
+this repository consumes them as a submodule.
 
 ## Building
 
@@ -17,6 +18,10 @@ cmake --build build
 ```
 
 Pass `-DMUYO_SOURCE_DIR=<path>` to build against a Muyo worktree instead of the submodule.
+
+The app and the tests need the Vulkan SDK on the environment, because this repository now owns the
+shader build: `glslangValidator` and `slangc` come from its `Bin` directory, and the SDK also supplies
+the validation layer and loader.
 
 On a Linux machine without Wayland development packages the GLFW configure needs the X11 path:
 
@@ -42,11 +47,11 @@ cd build && ./tests
 ```
 
 `tests` is the renderer-coupled half of Muyo's old suite, moved here with the pipeline. It is
-top-level only: Catch2 is fetched at configure time. Shaders and `assets/` are copied beside the
-binary by the build. The suite creates a physical device, so run it on a GPU; `[test device]` records
-what it ran on. Two `VUID-vkWaitForFences-pFences-parameter` lines on Unix are expected — the fork
-case deliberately passes a bad pointer to observe the abort — and heap-path cases skip on a device
-without `VK_EXT_descriptor_heap`.
+top-level only: Catch2 is fetched at configure time. The build compiles `shaders/` into the build
+directory and copies `assets/` beside the binary. The suite creates a physical device, so run it on a
+GPU; `[test device]` records what it ran on. Two `VUID-vkWaitForFences-pFences-parameter` lines on Unix
+are expected — the fork case deliberately passes a bad pointer to observe the abort — and heap-path
+cases skip on a device without `VK_EXT_descriptor_heap`.
 
 ## Capture
 
