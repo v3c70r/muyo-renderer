@@ -12,7 +12,7 @@ extensions: `VK_KHR_wayland_surface`, `VK_EXT_layer_settings`, `VK_KHR_portabili
 NULL, and `helloVulkan` aborts before Vulkan starts.
 
 Hiding `WAYLAND_DISPLAY` makes GLFW select Xwayland, which is the one combination that captures on a
-Wayland session ([Muyo#220](https://github.com/v3c70r/Muyo/issues/220)). By hand, with loader 1.4.313 on
+Wayland session ([muyo-renderer#15](https://github.com/v3c70r/muyo-renderer/issues/15), transferred from Muyo#220)). By hand, with loader 1.4.313 on
 RADV REMBRANDT:
 
 ```sh

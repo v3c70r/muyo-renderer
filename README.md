@@ -36,7 +36,7 @@ The X11 backend needs `libxrandr-dev`, `libxinerama-dev`, `libxcursor-dev` and `
 renames the API and would break `SceneImporter`, and tinyobjloader's newer `fast_float` does not
 compile at C++20 on MSVC. The migrations are tracked as
 [#1](https://github.com/v3c70r/muyo-renderer/issues/1) and
-[Muyo#323](https://github.com/v3c70r/Muyo/issues/323).
+[#21](https://github.com/v3c70r/muyo-renderer/issues/21).
 
 ## Tests
 
