@@ -1,9 +1,10 @@
 # Changelog
 
 All notable changes to `muyo-renderer` are recorded here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The process contract is the Muyo repository's
-`AGENTS.md` (this repository has no copy); a change that breaks a guarantee the library's
-`docs/Consumers.md` names is listed here as well as there.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The process contract is the Muyo
+repository's `AGENTS.md` (this repository has no copy). A change to a guarantee the library's
+`docs/Consumers.md` names is owned by the library's changelog; this one records the consumer's move
+when such a change lands, and the renderer's own changes.
 
 ## [0.1.0] - unreleased
 

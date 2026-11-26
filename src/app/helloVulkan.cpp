@@ -911,8 +911,8 @@ int main(int argc, char **argv)
 
             // Drain, recreate the swapchain at the window's new size, and rebuild the graph's per-execution
             // device objects. The graph's scene targets stay at their creation extent (the manager's
-            // viewport); FINAL stretches the composite into the new swapchain, and #186 owns the camera
-            // aspect.
+            // viewport); FINAL stretches the composite into the new swapchain, and muyo-renderer#14 owns
+            // the camera aspect.
             const auto recreateSwapchain = [&]()
             {
                 VK_ASSERT(vkDeviceWaitIdle(GetRenderDevice()->GetDevice()));

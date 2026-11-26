@@ -85,7 +85,7 @@ if (NOT ${glfw3_FOUND})
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
     # Both Unix backends, for the same reason Muyo builds them: RenderDoc's capture launcher under a
-    # Wayland session needs GLFW's X11 backend (AGENTS.md section 4, #220).
+    # Wayland session needs GLFW's X11 backend (Muyo's AGENTS.md section 4, muyo-renderer#15).
     if (UNIX AND NOT APPLE)
         set(GLFW_BUILD_X11 ON CACHE BOOL "Build GLFW's X11 backend (RenderDoc capture selects it via Xwayland)")
         set(GLFW_BUILD_WAYLAND ON CACHE BOOL "Build GLFW's Wayland backend")
