@@ -126,12 +126,20 @@ target_compile_definitions(imgui PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
 set(IMGUIZMO_INCLUDE_DIRS ${MUYO_RENDERER_ROOT}/thirdparty/ImGuizmo/src)
 add_library(imguizmo ${IMGUIZMO_INCLUDE_DIRS}/ImGuizmo.cpp)
 target_link_libraries(imguizmo PRIVATE imgui)
+# ImGuizmo.cpp includes imgui.h, so it must share imgui's IMGUI_USER_CONFIG (#8): the config changes
+# inline definitions, and a translation unit compiled without it disagrees about ImTextureID_Invalid.
+# The config header lives in src/, which the link edge does not carry.
+target_include_directories(imguizmo PRIVATE ${MUYO_RENDERER_ROOT}/src)
+target_compile_definitions(imguizmo PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
 
 ## imnodes
 # imnodes.h includes "imgui.h" in its public interface, so the dependency is PUBLIC here.
 set(IMNODES_INCLUDE_DIRS ${MUYO_RENDERER_ROOT}/thirdparty/imnodes)
 add_library(imnodes thirdparty/imnodes/imnodes.cpp)
 target_link_libraries(imnodes PUBLIC imgui)
+# Same consistency requirement as ImGuizmo (#8): imnodes.cpp includes imgui.h.
+target_include_directories(imnodes PRIVATE ${MUYO_RENDERER_ROOT}/src)
+target_compile_definitions(imnodes PRIVATE IMGUI_USER_CONFIG="ImGuiUserConfig.h")
 
 ## Vulkan (the library targets already require it; the renderer names it for its own link line)
 if (DEFINED ENV{VULKAN_SDK})
@@ -225,6 +233,12 @@ target_link_libraries(muyo_renderer
         ${GLM_INCLUDE_DIRS}
     )
 muyo_renderer_enable_deprecation_errors(muyo_renderer)
+# Every translation unit that includes imgui.h must share imgui's IMGUI_USER_CONFIG (#8): the config
+# changes inline definitions (ImTextureRef, ImFontAtlas::SetTexID), so a consumer compiled without it
+# disagrees with imgui about ImTextureID_Invalid and the Debug assert fires at startup. PUBLIC because
+# this library's public headers include imgui.h — the app and the suite inherit it through their link
+# edge. Pre-split Muyo stated the define on every imgui consumer; the split restored only two of them.
+target_compile_definitions(muyo_renderer PUBLIC IMGUI_USER_CONFIG="ImGuiUserConfig.h")
 
 # ── Applications ─────────────────────────────────────────────────────────────
 if (MUYO_RENDERER_TOP_LEVEL)
@@ -357,6 +371,7 @@ if (MUYO_RENDERER_TOP_LEVEL)
     add_executable(tests
         src/tests/ArcballTest.cpp
         src/tests/DebugCallbackTests.cpp
+        src/tests/DebugUIOverlayTests.cpp
         src/tests/DescriptorHeapProbeTests.cpp
         src/tests/DescriptorHeapServiceTests.cpp
         src/tests/DeviceCapabilityTests.cpp
