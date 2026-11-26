@@ -273,6 +273,10 @@ if (MUYO_RENDERER_TOP_LEVEL)
 
     # Slang sources. The `.heap.slang` variants are built by the rule below instead, so each source is
     # compiled exactly once (docs/DescriptorHeap-Bindless-Design.md §9).
+    # The header glob is a build dependency of every one of them, as for the GLSL rule: a shared struct
+    # change has to reach the modules that include it (#9). Muyo's ported rule had the header list
+    # commented out with a `#`, which left the four plain modules that include `shaders/shared` stale
+    # after a header-only edit.
     file(GLOB_RECURSE SLANG_SOURCE_FILES "${MUYO_RENDERER_ROOT}/shaders/*.slang")
     list(FILTER SLANG_SOURCE_FILES EXCLUDE REGEX "\\.heap\\.slang$")
     foreach (SLANG_SOURCE_FILE ${SLANG_SOURCE_FILES})
@@ -283,7 +287,7 @@ if (MUYO_RENDERER_TOP_LEVEL)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${MUYO_RENDERER_SHADER_DIR}"
             COMMAND ${Vulkan_SLANG_EXECUTABLE} ${SLANG_SOURCE_FILE} -DSHADER_CODE -DSLANG
                     -capability spirv_1_4 -profile glsl_450 -target spirv -o ${SPIRV} -entry main
-            DEPENDS ${SLANG_SOURCE_FILE})
+            DEPENDS ${SLANG_SOURCE_FILE} ${GLSL_HEADER_FILES})
         list(APPEND SPIRV_BINARY_FILES ${SPIRV})
     endforeach()
 
