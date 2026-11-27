@@ -12,8 +12,8 @@ extensions: `VK_KHR_wayland_surface`, `VK_EXT_layer_settings`, `VK_KHR_portabili
 NULL, and `helloVulkan` aborts before Vulkan starts.
 
 Hiding `WAYLAND_DISPLAY` makes GLFW select Xwayland, which is the one combination that captures on a
-Wayland session ([Muyo#220](https://github.com/v3c70r/Muyo/issues/220)). By hand, with loader 1.4.313 on
-RADV REMBRANDT:
+Wayland session ([muyo-renderer#15](https://github.com/v3c70r/muyo-renderer/issues/15)). By hand, with
+loader 1.4.313 on RADV REMBRANDT:
 
 ```sh
 env -u WAYLAND_DISPLAY renderdoccmd capture -c /tmp/x.rdc "$PWD/build/helloVulkan"
@@ -28,7 +28,7 @@ scripts/capture.sh -o /tmp/x.rdc build/helloVulkan
 ```
 
 GLFW must have its X11 backend. A fresh configure of the vendored GLFW builds both backends; an
-existing build tree created before #220 keeps its cached `GLFW_BUILD_X11=OFF` until reconfigured with
+existing build tree created before muyo-renderer#15 keeps its cached `GLFW_BUILD_X11=OFF` until reconfigured with
 `-DGLFW_BUILD_X11=ON`. On a machine without Wayland development packages, configure with
 `-DGLFW_BUILD_WAYLAND=OFF`; the X11 path needs `libxrandr-dev`, `libxinerama-dev`, `libxcursor-dev`
 and `libxi-dev`.
