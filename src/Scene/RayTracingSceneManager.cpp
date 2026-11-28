@@ -3,7 +3,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Debug/ScopedMarker.h"
-#include "DescriptorManager.h"
 #include "Geometry.h"
 #include "MeshResourceManager.h"
 #include "Scene.h"
