@@ -24,6 +24,16 @@ when such a change lands, and the renderer's own changes.
   on the same `imgui.h` assertion the app died on.
 - **This changelog**, seeded by the 2026-11-26 post-split sync audit.
 
+### Removed
+
+- **The legacy descriptor-set/pool scaffolding** (#24). `DescriptorManager` (220 + 555 lines),
+  `Material::m_descriptorSet` / `GetDescriptorSet()` / `AllocateDescriptorSet()` with both call
+  sites, the pool/layout create+destroy steps in `GraphicsTestEnv` (and its two teardown flags)
+  and `helloVulkan`, and dead `DescriptorManager.h` includes. Nothing bound the sets it
+  allocated — the only consumer was a non-null check in `SceneImporter` — since the live
+  material path is the descriptor heap's material buffer + texture table. Behaviour-neutral
+  dead-code removal; the library side has had zero `vkCmdBindDescriptorSets` since B1.
+
 ### Fixed
 
 - **Debug `helloVulkan` aborted before its first frame** (#8, fixed in #10).

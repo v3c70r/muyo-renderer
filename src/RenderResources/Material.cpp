@@ -1,6 +1,5 @@
 #include "Material.h"
 
-#include "DescriptorManager.h"
 #include "RenderResourceManager.h"
 
 namespace Muyo
@@ -53,7 +52,6 @@ void MaterialManager::CreateDefaultMaterial()
             .LoadTexture(Material::TEX_ROUGHNESS, "assets/Materials/white5x5.png", "defaultRoughness")
             .LoadTexture(Material::TEX_AO, "assets/Materials/white5x5.png", "defaultOcclusion")
             .LoadTexture(Material::TEX_EMISSIVE, "assets/Materials/white5x5.png", "defaultOcclusion");
-        material.AllocateDescriptorSet();
     }
 }
 
@@ -104,15 +102,5 @@ Material &Material::SetMaterialParameterFactors(const PBRMaterial &factors, cons
 
     return *this;
 }
-
-void Material::AllocateDescriptorSet()
-{
-    if (m_descriptorSet == VK_NULL_HANDLE)
-    {
-        m_descriptorSet = GetDescriptorManager()->AllocateMaterialDescriptorSet(m_materialParameters);
-    }
-}
-
-VkDescriptorSet Material::GetDescriptorSet() const { return m_descriptorSet; }
 
 }  // namespace Muyo

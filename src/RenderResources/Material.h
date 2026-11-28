@@ -58,9 +58,6 @@ public:
         memcpy((uint32_t*)(m_materialParameters.m_aTextureIndices.data()), aIndices, sizeof(uint32_t) * TEX_COUNT);
     }
 
-    VkDescriptorSet GetDescriptorSet() const;
-    void AllocateDescriptorSet();
-
     bool IsTransparent() const { return m_bIsTransparent; }
     void SetTransparent() { m_bIsTransparent = true; }
     void SetOpaque() { m_bIsTransparent = false; }
@@ -71,7 +68,6 @@ private:
     MaterialParameters m_materialParameters;
     const std::array<std::string, TEX_COUNT> m_aNames = {"TEX_ALBEDO",    "TEX_NORMAL", "TEX_METALNESS",
                                                          "TEX_ROUGHNESS", "TEX_AO",     "TEX_EMISSIVE"};
-    VkDescriptorSet m_descriptorSet = VK_NULL_HANDLE;
     bool m_bIsTransparent = false;
     std::string m_sFactorName;
 

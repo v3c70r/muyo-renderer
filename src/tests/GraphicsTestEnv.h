@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "Debug/Validation.h"
-#include "DescriptorManager.h"
 #include "Material.h"
 #include "MeshResourceManager.h"
 #include "PerObjResourceManager.h"
@@ -205,10 +204,6 @@ private:
         // interface (#272). One per fixture: builders own their resources and release them through it.
         m_graphAllocator = CreateVkGraphResourceAllocator(GetRenderDevice());
         GetRenderResourceManager()->Initialize();
-        GetDescriptorManager()->CreateDescriptorPool();
-        m_bDescriptorPoolCreated = true;
-        GetDescriptorManager()->CreateDescriptorSetLayouts();
-        m_bDescriptorSetLayoutsCreated = true;
         GetSamplerManager()->createSamplers();
         m_bSamplersCreated = true;
     }
@@ -227,16 +222,6 @@ private:
             m_bSamplersCreated = false;
         }
         GetTextureResourceManager()->Destroy();
-        if (m_bDescriptorSetLayoutsCreated)
-        {
-            GetDescriptorManager()->DestroyDescriptorSetLayouts();
-            m_bDescriptorSetLayoutsCreated = false;
-        }
-        if (m_bDescriptorPoolCreated)
-        {
-            GetDescriptorManager()->DestroyDescriptorPool();
-            m_bDescriptorPoolCreated = false;
-        }
         GetRenderResourceManager()->Unintialize();
         if (m_bCommandPoolsCreated)
         {
@@ -288,8 +273,6 @@ private:
     // there is no half-created state for teardown to leave behind.
     bool m_bCommandPoolsCreated = false;
     bool m_bMemoryAllocatorInitialized = false;
-    bool m_bDescriptorPoolCreated = false;
-    bool m_bDescriptorSetLayoutsCreated = false;
     bool m_bSamplersCreated = false;
 
     /// The step `FailNextConstructionForTest` armed; consumed by the next constructor. Test-only.

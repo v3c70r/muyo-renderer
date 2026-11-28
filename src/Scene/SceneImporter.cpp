@@ -525,9 +525,6 @@ void GLTFImporter::ConstructGeometryNode(GeometrySceneNode &geomNode, const tiny
             // to sit here was a self-copy - a no-op that warned `-Wrestrict` in every configuration (#121).
             material.FillPbrTextureIndices(pbrMaterial.textureIds);
 
-            material.AllocateDescriptorSet();
-            RequireGltf(material.GetDescriptorSet() != VK_NULL_HANDLE, m_sceneFile,
-                        "material descriptor set was not allocated");
             if (gltfMaterial.alphaMode != "OPAQUE")
             {
                 RequireGltf(gltfMaterial.alphaMode == "BLEND", m_sceneFile,

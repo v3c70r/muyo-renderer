@@ -27,7 +27,6 @@
 #include "Debug/RenderGraphTracePage.h"
 #include "Debug/Validation.h"
 #include "DescriptorHeapService.h"
-#include "DescriptorManager.h"
 #include "DrawCommandBuffer.h"
 #include "EventSystem.h"
 #include "FrameSync.h"
@@ -212,9 +211,6 @@ std::vector<const char *> GetRequiredDeviceExtensions()
 
 void cleanup()
 {
-    GetDescriptorManager()->DestroyDescriptorSetLayouts();
-    GetDescriptorManager()->DestroyDescriptorPool();
-
     GetRenderDevice()->DestroyCommandPools();
     GetRenderResourceManager()->Unintialize();
     GetMemoryAllocator()->Unintialize();
@@ -278,9 +274,6 @@ int main(int argc, char **argv)
     GetRenderDevice()->CreateCommandPools();
 
     // Initialize managers
-    GetDescriptorManager()->CreateDescriptorPool();
-    GetDescriptorManager()->CreateDescriptorSetLayouts();
-
     GetSamplerManager()->createSamplers();
 
     InitEventHandlers();
